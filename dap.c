@@ -164,7 +164,7 @@ static bool dap_swd_data_phase;
 /*- Implementations ---------------------------------------------------------*/
 
 //-----------------------------------------------------------------------------
-static inline void dap_delay_loop(int delay)
+static inline void dap_delay_loop(volatile int delay)
 {
   while (--delay)
     asm("nop");
@@ -1031,3 +1031,49 @@ void dap_clock_test(int delay)
   }
 }
 
+//-----------------------------------------------------------------------------
+
+void dap_calibrate() {
+
+  mp_print_str(MP_PYTHON_PRINTER, "[                  ]\r[");
+
+  /* count cycles per second */
+  const uint32_t reps = 20000000;
+  uint32_t start_us, stop_us, time0_us;
+  DAP_CONFIG_CONNECT_SWD();
+  start_us = mp_hal_ticks_us();
+  for (volatile uint32_t i = 0; i < reps; i++) {
+    DAP_CONFIG_SWCLK_TCK_clr();
+    DAP_CONFIG_SWCLK_TCK_set();
+  }
+  stop_us = mp_hal_ticks_us();
+  time0_us = stop_us - start_us;
+  float fast_clock_f = (float)reps / (float)time0_us * 1e6;
+  dap_config_fast_clock = (int)fast_clock_f;
+  mp_print_str(MP_PYTHON_PRINTER, "=");
+
+  /* find delay for 1 kHz clock by successive approximation */
+  uint32_t delay = 0;
+  uint32_t delta = 65536;
+  while (delta > 0) {
+    delay += delta;
+    start_us = mp_hal_ticks_us();
+    for (volatile uint32_t i = 0; i < 1000; i++) {
+      DAP_CONFIG_SWCLK_TCK_clr();
+      dap_delay_loop(delay);
+      DAP_CONFIG_SWCLK_TCK_set();
+      dap_delay_loop(delay);
+    }
+    stop_us = mp_hal_ticks_us();
+    time0_us = stop_us - start_us;
+    if (time0_us > 1000000)
+      delay -= delta;
+    delta = delta / 2;
+    mp_print_str(MP_PYTHON_PRINTER, "=");
+  }
+  dap_config_delay_constant = delay;
+  mp_print_str(MP_PYTHON_PRINTER, "\n");
+  return;
+}
+
+// not truncated

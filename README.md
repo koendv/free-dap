@@ -1,59 +1,100 @@
-# Free-DAP
+# free-dap
 
-This is a free and open implementation of the CMSIS-DAP debugger firmware.
+[free-dap](https://github.com/ataradov/free-dap) is a free and open implementation of the CMSIS-DAP debugger firmware.
 
-Only SWD protocol is supported for now. If you have a real need for JTAG support,
-please contact me.
+This the free-dap CMSIS-DAP probe, running as a micropython extension.
 
-## Platform requirements
+free-dap only supports SWD, not JTAG.
 
-To create a CMSIS-DAP compliant debugger, your platform must:
- * Implement USB HID device able to receive and send arbitrary reports
- * Provide configuration file dap_config.h with definitions for hardware-dependent calls
- * Call dap_init() at the initialization time
- * Call dap_process_request() for every received request and send the response back
+## Use
 
-## Configuration
+The DAP probe is a USB HID device. To configure micropython as a HID device,  put the following line in boot.py:
 
-For complete list of settings see one of the existing configuration file, they are
-pretty obvious.
+```
+import dap
+pyb.usb_mode('VCP+HID', vid=0x1d50, pid=0x6018, hid=dap.hid_info)
+```
+To start the DAP probe, type from the micropython prompt:
+```
+dap.init()
+```
+Now you can connect openocd to the DAP probe:
+```
+$ openocd -f interface/cmsis-dap.cfg -f target/stm32f1x.cfg
+```
+and in another window you can connect gdb to openocd:
 
-To configure clock frequency you need to specify two parameters:
-  * DAP_CONFIG_DELAY_CONSTANT - clock timing constant. This constant can be determined
-    by calling dap_clock_test() with varying parameter value and measuring the frequency
-    on the SWCLK pin. Delay constant value is the value of the parameter at which 
-    output frequency equals to 1 kHz.
-  * DAP_CONFIG_FAST_CLOCK - threshold for switching to fast clock routines. This value
-    defines the frequency, at which more optimal pin manipulation functions are used.
-    This is the frequency produced by dap_clock_test(1) on the SWCLK pin.
-    You can also measure maximum achievable frequency on your platform by calling dap_clock_test(0).
+```
+$ arm-none-eabi-gdb -q -nh
+(gdb) target extended-remote localhost:3333
+```
+and begin debugging.
 
-Your configuration file will need to define the following pin manipulation functions:
+## Clock frequency calibration
+The SWD clock frequency has an accuracy of better than 1%. 
 
- * DAP_CONFIG_SWCLK_TCK_write()
- * DAP_CONFIG_SWDIO_TMS_write()
- * DAP_CONFIG_TDO_write()
- * DAP_CONFIG_nTRST_write()
- * DAP_CONFIG_nRESET_write()
- * DAP_CONFIG_SWCLK_TCK_read()
- * DAP_CONFIG_SWDIO_TMS_read()
- * DAP_CONFIG_TDI_read()
- * DAP_CONFIG_TDO_read()
- * DAP_CONFIG_nTRST_read()
- * DAP_CONFIG_nRESET_read()
- * DAP_CONFIG_SWCLK_TCK_set()
- * DAP_CONFIG_SWCLK_TCK_clr()
- * DAP_CONFIG_SWDIO_TMS_in()
- * DAP_CONFIG_SWDIO_TMS_out()
+For increased accuracy, the SWD clock frequency can be calibrated.
 
-Note that all pin manipulation functions are required even if one of the interfaces (JTAG or SWD) is not enabled.
+At the micropython command prompt, type *dap.calibrate()*
 
-Additionally configuration file must provide basic initialization and control functions:
+ Calibration takes 20 seconds. Calibration output is a tuple of two numbers:
+ 
+```
+>>> dap.calibrate()
+[=================]
+(35985, 8999685)
+```
+Calibration data are lost when micropython reboots, but there is no need to re-run calibration every time micropython boots. 
+Once you know the calibration data of your board, you can simply set calibration values in main.py:
 
- * DAP_CONFIG_SETUP()
- * DAP_CONFIG_DISCONNECT()
- * DAP_CONFIG_CONNECT_SWD()
- * DAP_CONFIG_CONNECT_JTAG()
- * DAP_CONFIG_LED()
+```
+>>> dap.calibrate(cal=(35985, 8999685))
+```
 
+## Clock frequency measurement 
+
+The calibration tuple consists of two numbers: 
+
+- the first number is the number of delay loops that is needed to produce a clock of 1 kHz
+- the second number is the clock frequency that results from using no (0) delay loops.
+
+These two numbers may differ between boards,  micropython versions and compilation runs.
+
+To measure clock frequency using a frequency meter or an oscilloscope, it is possible to output a fixed clock on the SWCLK pin. Simply call calibrate(), with the number of delay cycles wanted. E.g. on the above board, 
+
+```
+>>> dap.calibrate(delay=35985)
+```
+gives a 1kHz square wave, and 
+```
+>>> dap.calibrate(delay=0)
+```
+gives a 9 MHz square wave. A call to dap.calibrate(delay=*number*) does not return; type ctrl-c when you are done measuring.
+
+If you attach an oscilloscope to the SWCLK pin  while dap.calibrate() is running, you will see the clock frequency converging to 1 kHz.
+
+## Compilation
+
+On stm32, *mod_dap* requires pins called DAP_SWDIO, _SWCLK, and DAP_SRST in *pins.csv*, eg.:
+
+```
+DAP_SWDIO,PB1
+DAP_SWCLK,PB0
+DAP_SRST,PB11
+```
+
+The function *dap_loop()* needs to be called periodically, eg. from the micropython event loop.
+
+To compile, type
+
+```
+cd ports/stm32
+make USER_C_MODULES=../../../extmod BOARD=PYBD_SF2
+```
+## To do 
+Optimize for high-speed usb
+
+## See also
+
+Original [free-dap](https://github.com/ataradov/free-dap) software, written by A. Taradov.
 

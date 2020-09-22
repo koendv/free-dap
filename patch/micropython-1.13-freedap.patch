@@ -1,0 +1,61 @@
+diff --git a/ports/stm32/mphalport.c b/ports/stm32/mphalport.c
+index 0e40911ed..694bd217f 100644
+--- a/ports/stm32/mphalport.c
++++ b/ports/stm32/mphalport.c
+@@ -7,6 +7,9 @@
+ #include "extmod/misc.h"
+ #include "usb.h"
+ #include "uart.h"
++#if MODULE_FREEDAP_ENABLED
++#include "mod_dap.h"
++#endif
+ 
+ // this table converts from HAL_StatusTypeDef to POSIX errno
+ const byte mp_hal_status_to_errno_table[4] = {
+@@ -50,6 +53,11 @@ MP_WEAK int mp_hal_stdin_rx_chr(void) {
+             return dupterm_c;
+         }
+         MICROPY_EVENT_POLL_HOOK
++
++        #if MODULE_FREEDAP_ENABLED
++        dap_loop();
++        #endif
++
+     }
+ }
+ 
+diff --git a/ports/stm32/usb.c b/ports/stm32/usb.c
+index 968b2999c..94895360e 100644
+--- a/ports/stm32/usb.c
++++ b/ports/stm32/usb.c
+@@ -1021,6 +1021,19 @@ const mp_obj_type_t pyb_usb_hid_type = {
+     .locals_dict = (mp_obj_dict_t *)&pyb_usb_hid_locals_dict,
+ };
+ 
++/* return hid interface if hid is configured, NULL otherwise */
++usbd_hid_itf_t *usbd_hid_interface() {
++    #if defined(USE_HOST_MODE)
++    return NULL;
++    #else
++    uint8_t usb_mode = USBD_GetMode(&usb_device.usbd_cdc_msc_hid_state) & USBD_MODE_IFACE_MASK;
++    if ((usb_mode == USBD_MODE_HID) || (usb_mode == USBD_MODE_CDC_HID) || (usb_mode == USBD_MODE_MSC_HID))
++      return &usb_device.usbd_hid_itf;
++    else
++      return NULL;
++    #endif
++}
++
+ #endif // MICROPY_HW_USB_HID
+ 
+ /******************************************************************************/
+diff --git a/ports/stm32/usbd_hid_interface.h b/ports/stm32/usbd_hid_interface.h
+index 5d2c9ad87..dcabbb795 100644
+--- a/ports/stm32/usbd_hid_interface.h
++++ b/ports/stm32/usbd_hid_interface.h
+@@ -22,4 +22,6 @@ static inline int usbd_hid_rx_num(usbd_hid_itf_t *hid) {
+ 
+ int usbd_hid_rx(usbd_hid_itf_t *hid, size_t len, uint8_t *buf, uint32_t timeout_ms);
+ 
++usbd_hid_itf_t *usbd_hid_interface();
++
+ #endif // MICROPY_INCLUDED_STM32_USBD_HID_INTERFACE_H
