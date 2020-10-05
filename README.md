@@ -1,5 +1,24 @@
 # free-dap
 
+## Overview
+
+These are sources for a micropython debugger probe. The debugger probe provides
+
+- a gdb server, to debug using gdb 
+- a cmsis-dap probe, to debug using openocd and pyocd
+- micropython extension modules, to manipulate target memory and registers from micropython scripts.
+
+The sources for the micropython debugger probe are spread over four gits:
+
+- [bmp](http://www.github.com/koendv/bmp): build script, binaries, doc
+- [micropython](http://www.github.com/koendv/micropython) micropython, patched. Board definition files.
+- [blackmagic](http://www.github.com/koendv/blackmagic) Black Magic Probe, patched into a micropython module
+- [free-dap](http://www.github.com/koendv/free-dap) free-dap, patched into a micropython module.
+
+These are the free-dap source files.
+
+## This git
+
 [free-dap](https://github.com/ataradov/free-dap) is a free and open implementation of the CMSIS-DAP debugger firmware.
 
 This the free-dap CMSIS-DAP probe, running as a micropython extension.
@@ -31,7 +50,7 @@ $ arm-none-eabi-gdb -q -nh
 and begin debugging.
 
 ## Clock frequency calibration
-The SWD clock frequency has an accuracy of better than 1%. 
+With the default calibration values, SWD clock frequency ought to have an accuracy of better than 1%. 
 
 For increased accuracy, the SWD clock frequency can be calibrated.
 
@@ -45,7 +64,7 @@ At the micropython command prompt, type *dap.calibrate()*
 (35985, 8999685)
 ```
 Calibration data are lost when micropython reboots, but there is no need to re-run calibration every time micropython boots. 
-Once you know the calibration data of your board, you can simply set calibration values in main.py:
+Once you know the calibration data of your board, you can simply set calibration values in ``main.py``:
 
 ```
 >>> dap.calibrate(cal=(35985, 8999685))
