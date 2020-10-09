@@ -47,7 +47,7 @@
 #endif
 
 #define DAP_CONFIG_PACKET_SIZE         64
-#define DAP_CONFIG_PACKET_COUNT        1
+#define DAP_CONFIG_PACKET_COUNT        4
 
 // Set the value to NULL if you want to disable a string
 // DAP_CONFIG_PRODUCT_STR must contain "CMSIS-DAP" to be compatible with the standard

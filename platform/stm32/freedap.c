@@ -94,52 +94,19 @@ void dap_setup() {
 
 //-----------------------------------------------------------------------------
 
-static void receive_request(void) {
-  if (app_request_valid[app_request_wr_ptr])
-    return;
-
-  if (hid_itf == NULL)
-    return;
-
-  if (usbd_hid_rx_num(hid_itf) == 0)
-    return;
-
-  if (usbd_hid_rx(hid_itf, DAP_CONFIG_PACKET_SIZE,
-                  app_request_buffer[app_request_wr_ptr], 0) <= 0)
-    return;
-
-  if (!dap_filter_request(app_request_buffer[app_request_wr_ptr]))
-    return;
-
-  app_request_valid[app_request_wr_ptr] = true;
-  app_request_wr_ptr = (app_request_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-
-  watchdog_timer = mp_hal_ticks_ms();
-
-  return;
-}
-
-//-----------------------------------------------------------------------------
-
 static void send_response(void) {
-  if (!app_response_valid[app_response_rd_ptr])
-    return;
-
   if (hid_itf == NULL)
     return;
 
-  if (!USBD_HID_CanSendReport(&hid_itf->base))
-    return;
-
-  if (USBD_HID_SendReport(&hid_itf->base,
-                          app_response_buffer[app_response_rd_ptr],
-                          DAP_CONFIG_PACKET_SIZE) == USBD_FAIL)
-    return;
-
-  app_response_valid[app_response_rd_ptr] = false;
-  app_response_rd_ptr = (app_response_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-
-  watchdog_timer = 0;
+  while (app_response_valid[app_response_rd_ptr] &&
+         USBD_HID_CanSendReport(&hid_itf->base) &&
+         (USBD_HID_SendReport(&hid_itf->base,
+                              app_response_buffer[app_response_rd_ptr],
+                              DAP_CONFIG_PACKET_SIZE) == USBD_OK)) {
+    app_response_valid[app_response_rd_ptr] = false;
+    app_response_rd_ptr = (app_response_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+    watchdog_timer = 0;
+  }
 
   return;
 }
@@ -147,20 +114,39 @@ static void send_response(void) {
 //-----------------------------------------------------------------------------
 
 static void dap_process(void) {
-  if (!app_request_valid[app_request_rd_ptr])
+  while (app_request_valid[app_request_rd_ptr] &&
+         !app_response_valid[app_response_wr_ptr]) {
+    dap_process_request(app_request_buffer[app_request_rd_ptr],
+                        app_response_buffer[app_response_wr_ptr]);
+
+    app_response_valid[app_response_wr_ptr] = true;
+    app_response_wr_ptr = (app_response_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+
+    app_request_valid[app_request_rd_ptr] = false;
+    app_request_rd_ptr = (app_request_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+
+    send_response();
+  }
+}
+
+//-----------------------------------------------------------------------------
+
+static void receive_request(void) {
+  if (hid_itf == NULL)
     return;
 
-  if (app_response_valid[app_response_wr_ptr])
-    return;
+  while (!app_request_valid[app_request_wr_ptr] &&
+         (usbd_hid_rx_num(hid_itf) != 0) &&
+         (usbd_hid_rx(hid_itf, DAP_CONFIG_PACKET_SIZE,
+                      app_request_buffer[app_request_wr_ptr], 0) > 0) &&
+         dap_filter_request(app_request_buffer[app_request_wr_ptr])) {
+    app_request_valid[app_request_wr_ptr] = true;
+    app_request_wr_ptr = (app_request_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+    watchdog_timer = mp_hal_ticks_ms();
+    dap_process();
+  }
 
-  dap_process_request(app_request_buffer[app_request_rd_ptr],
-                      app_response_buffer[app_response_wr_ptr]);
-
-  app_response_valid[app_response_wr_ptr] = true;
-  app_response_wr_ptr = (app_response_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-
-  app_request_valid[app_request_rd_ptr] = false;
-  app_request_rd_ptr = (app_request_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
+  return;
 }
 
 //-----------------------------------------------------------------------------
