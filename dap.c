@@ -1048,8 +1048,7 @@ void dap_calibrate() {
   }
   stop_us = mp_hal_ticks_us();
   time0_us = stop_us - start_us;
-  float fast_clock_f = (float)reps / (float)time0_us * 1e6;
-  dap_config_fast_clock = (int)fast_clock_f;
+  dap_config_fast_clock = (int)(reps*1e6/time0_us);
   mp_print_str(MP_PYTHON_PRINTER, "=");
 
   /* find delay for 1 kHz clock by successive approximation */
