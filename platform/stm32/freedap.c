@@ -1,5 +1,6 @@
 #include "dap.h"
 #include "dap_config.h"
+#include "mod_dap.h"
 
 #ifdef MIN
 #undef MIN
@@ -48,6 +49,8 @@ static void serial_number_init(void) {
 
 //-----------------------------------------------------------------------------
 
+/* dap_setup(): called once */
+
 void dap_setup() {
 
   serial_number_init();
@@ -57,9 +60,15 @@ void dap_setup() {
     mp_raise_RuntimeError(MP_ERROR_TEXT("no usb hid device"));
 }
 
-void dap_task() {
+//-----------------------------------------------------------------------------
+
+/* dap_loop(): called periodically */
+
+void dap_loop() {
   uint8_t app_request_buffer[DAP_CONFIG_PACKET_SIZE];
   uint8_t app_response_buffer[DAP_CONFIG_PACKET_SIZE];
+
+  if (!dap_enabled) return;
 
 #ifdef MICROPY_HW_LED1
   MICROPY_HW_LED_ON(MICROPY_HW_LED1);

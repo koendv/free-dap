@@ -1,4 +1,3 @@
-
 #include "py/nlr.h"
 #include "py/obj.h"
 #include "py/objarray.h"
@@ -6,7 +5,7 @@
 #include "py/runtime.h"
 #include "py/binary.h"
 #include "py/mpconfig.h"
-#include "freedap.h"
+#include "mod_dap.h"
 #include "dap_config.h"
 #include "dap.h"
 
@@ -102,14 +101,6 @@ STATIC const mp_obj_str_t usb_hid_dap_desc_obj = {
 STATIC mp_obj_t mp_dap_help() {
   mp_print_str(MP_PYTHON_PRINTER, dap_help_text);
   return mp_const_none;
-}
-
-/*
- * call periodically
- */
-void dap_loop() {
-  if (dap_enabled)
-    dap_task();
 }
 
 STATIC mp_obj_t mp_dap_init() {
