@@ -15,28 +15,13 @@
 #include "usbdev/class/inc/usbd_cdc_msc_hid.h"
 
 #include "py/runtime.h"
-#define mp_raise_RuntimeError(msg) (mp_raise_msg(&mp_type_RuntimeError, (msg)))
 
 /*- Definitions -------------------------------------------------------------*/
-#define STATUS_TIMEOUT 250 // ms
+#define mp_raise_RuntimeError(msg) (mp_raise_msg(&mp_type_RuntimeError, (msg)))
 
 /*- Variables ---------------------------------------------------------------*/
 static usbd_hid_itf_t *hid_itf = NULL;
-
-static uint8_t app_request_buffer[DAP_CONFIG_PACKET_COUNT]
-                                 [DAP_CONFIG_PACKET_SIZE];
-static bool app_request_valid[DAP_CONFIG_PACKET_COUNT];
-static int app_request_wr_ptr;
-static int app_request_rd_ptr;
-
-static uint8_t app_response_buffer[DAP_CONFIG_PACKET_COUNT]
-                                  [DAP_CONFIG_PACKET_SIZE];
-static bool app_response_valid[DAP_CONFIG_PACKET_COUNT];
-static int app_response_wr_ptr;
-static int app_response_rd_ptr;
-
 char dap_serial_number[48 + 1];
-uint32_t watchdog_timer = 0;
 
 //-----------------------------------------------------------------------------
 
@@ -63,116 +48,31 @@ static void serial_number_init(void) {
 
 //-----------------------------------------------------------------------------
 
-void dap_clear() {
-  app_request_wr_ptr = 0;
-  app_request_rd_ptr = 0;
-
-  app_response_wr_ptr = 0;
-  app_response_rd_ptr = 0;
-
-  for (int i = 0; i < DAP_CONFIG_PACKET_COUNT; i++) {
-    app_request_valid[i] = false;
-    app_response_valid[i] = false;
-  }
-
-  watchdog_timer = 0;
-}
-
-//-----------------------------------------------------------------------------
-
 void dap_setup() {
-
-  dap_clear();
 
   serial_number_init();
 
   hid_itf = usbd_hid_interface();
-
   if (hid_itf == NULL)
     mp_raise_RuntimeError(MP_ERROR_TEXT("no usb hid device"));
 }
 
-//-----------------------------------------------------------------------------
-
-static void send_response(void) {
-  if (hid_itf == NULL)
-    return;
-
-  while (app_response_valid[app_response_rd_ptr] &&
-         USBD_HID_CanSendReport(&hid_itf->base) &&
-         (USBD_HID_SendReport(&hid_itf->base,
-                              app_response_buffer[app_response_rd_ptr],
-                              DAP_CONFIG_PACKET_SIZE) == USBD_OK)) {
-    app_response_valid[app_response_rd_ptr] = false;
-    app_response_rd_ptr = (app_response_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-    watchdog_timer = 0;
-  }
-
-  return;
-}
-
-//-----------------------------------------------------------------------------
-
-static void dap_process(void) {
-  while (app_request_valid[app_request_rd_ptr] &&
-         !app_response_valid[app_response_wr_ptr]) {
-    dap_process_request(app_request_buffer[app_request_rd_ptr],
-                        app_response_buffer[app_response_wr_ptr]);
-
-    app_response_valid[app_response_wr_ptr] = true;
-    app_response_wr_ptr = (app_response_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-
-    app_request_valid[app_request_rd_ptr] = false;
-    app_request_rd_ptr = (app_request_rd_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-
-    send_response();
-  }
-}
-
-//-----------------------------------------------------------------------------
-
-static void receive_request(void) {
-  if (hid_itf == NULL)
-    return;
-
-  while (!app_request_valid[app_request_wr_ptr] &&
-         (usbd_hid_rx_num(hid_itf) != 0) &&
-         (usbd_hid_rx(hid_itf, DAP_CONFIG_PACKET_SIZE,
-                      app_request_buffer[app_request_wr_ptr], 0) > 0) &&
-         dap_filter_request(app_request_buffer[app_request_wr_ptr])) {
-    app_request_valid[app_request_wr_ptr] = true;
-    app_request_wr_ptr = (app_request_wr_ptr + 1) % DAP_CONFIG_PACKET_COUNT;
-    watchdog_timer = mp_hal_ticks_ms();
-    dap_process();
-  }
-
-  return;
-}
-
-//-----------------------------------------------------------------------------
-
-static void dap_watchdog(void) {
-  if (watchdog_timer == 0)
-    return;
-  uint32_t now = mp_hal_ticks_ms();
-  if ((now > watchdog_timer) && (now - watchdog_timer > 5000)) {
-    mp_print_str(MP_PYTHON_PRINTER, "dap reset\n");
-    dap_clear();
-  }
-}
-
-//-----------------------------------------------------------------------------
-
 void dap_task() {
+  uint8_t app_request_buffer[DAP_CONFIG_PACKET_SIZE];
+  uint8_t app_response_buffer[DAP_CONFIG_PACKET_SIZE];
 
 #ifdef MICROPY_HW_LED1
   MICROPY_HW_LED_ON(MICROPY_HW_LED1);
 #endif
 
-  receive_request();
-  dap_process();
-  send_response();
-  dap_watchdog();
+  while ((hid_itf != NULL) && 
+         USBD_HID_CanSendReport(&hid_itf->base) &&
+         (usbd_hid_rx_num(hid_itf) != 0) &&
+         (usbd_hid_rx(hid_itf, DAP_CONFIG_PACKET_SIZE, app_request_buffer, 0) > 0) &&
+         dap_filter_request(app_request_buffer)) {
+    dap_process_request(app_request_buffer, app_response_buffer);
+    USBD_HID_SendReport(&hid_itf->base, app_response_buffer, DAP_CONFIG_PACKET_SIZE);
+  }
 
 #ifdef MICROPY_HW_LED1
   MICROPY_HW_LED_OFF(MICROPY_HW_LED1);
