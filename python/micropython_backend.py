@@ -46,9 +46,8 @@ class PyUSB(object):
 
         for _ in range(self.packet_size - len(data)):
             data.append(0)
-
-				request = bytearray(data)
-				response = bytearray(64)
+        request = bytearray(data)
+        response = bytearray(64)
         self.rcv_valid = dap.process(request, response)
         self.rcv_data = list(response)
         return
