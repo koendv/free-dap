@@ -55,7 +55,7 @@ void dap_setup() {
 
   serial_number_init();
 
-  hid_itf = usbd_hid_interface();
+  hid_itf = usbd_hid_get();
   if (hid_itf == NULL)
     mp_raise_RuntimeError(MP_ERROR_TEXT("no usb hid device"));
 }
