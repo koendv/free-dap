@@ -3,7 +3,7 @@
 # limit packet queue to 1 packet. In dap_settings.py put: 
 # limit_packets = True
 
-import machine. dap, ubinascii
+import machine, dap, ubinascii
 import ulogging as logging
 from dap_access_api import DAPAccessIntf
 
