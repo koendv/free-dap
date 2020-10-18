@@ -4,10 +4,7 @@
 # limit_packets = True
 
 import machine, dap, ubinascii
-import ulogging as logging
-from dap_access_api import DAPAccessIntf
 
-LOG = logging.getLogger(__name__)
 IS_AVAILABLE = True
 
 class PyUSB(object):
@@ -24,41 +21,31 @@ class PyUSB(object):
         self.packet_size = 64
         self.rcv_data = []
         self.rcv_valid = False
-        self.closed = True 
     
     @property
     def has_swo_ep(self):
         return False
 
     def open(self):
-        assert self.closed is True
-        self.closed = False
         return
 
     def close(self):
-        assert self.closed is False
-        self.closed = True
         return
 
     def write(self, data):
-        """! @brief Write data on the OUT endpoint associated to the HID interface
-        """
-
-        for _ in range(self.packet_size - len(data)):
-            data.append(0)
+        if len(data) != self.packet_size:
+            data.extend([0]*self.packet_size)
+            data=data[0:self.packet_size-1]
         request = bytearray(data)
-        response = bytearray(64)
+        response = bytearray(self.packet_size)
         self.rcv_valid = dap.process(request, response)
-        self.rcv_data = list(response)
+        if self.rcv_valid:
+            self.rcv_data = list(response)
+        else:
+            self.rcv_data = []
         return
 
     def read(self, size=-1, timeout=-1):
-        """! @brief Read data on the IN endpoint associated to the HID interface
-        """
-
-        if not self.rcv_valid:
-            LOG.debug('read without write')
-
         data = self.rcv_data
         self.rcv_data = []
         self.rcv_valid = False
@@ -74,10 +61,10 @@ class PyUSB(object):
         return self.packet_count
 
     def set_packet_count(self, count):
-        assert count == 1
+        assert count == self.packet_count
 
     def set_packet_size(self, size):
-        assert size == 64
+        assert size == self.packet_size
 
     def get_packet_size(self):
         return self.packet_size
