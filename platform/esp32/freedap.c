@@ -48,6 +48,8 @@ void dap_setup() {
 
 void dap_loop() {
 /* empty */
+
+/* esp32 has no usb. use bluetooth hid profile instead? */
 }
 
 // not truncated
