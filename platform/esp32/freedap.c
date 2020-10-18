@@ -28,7 +28,7 @@ static void serial_number_init(void) {
   memset(dap_serial_number, 0, sizeof(dap_serial_number));
   uint8_t  chipid[6];
   esp_efuse_mac_get_default(chipid);
-  hexify(dap_serial_number, chipid, sizeof(chipid));
+  hexify(dap_serial_number+12, chipid, sizeof(chipid));
   return;
 }
 
