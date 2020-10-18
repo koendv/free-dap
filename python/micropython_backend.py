@@ -17,7 +17,7 @@ class PyUSB(object):
         self.product_name = "Generic CMSIS-DAP Adapter"
         self.serial_number = str(ubinascii.hexlify(machine.unique_id()),'ascii')
         self.packet_count = 1
-        self.packet_size = 64
+        self.packet_size = 64 # DAP_CONFIG_PACKET_SIZE in dap_config.h
         self.rcv_data = []
     
     def write(self, data):
