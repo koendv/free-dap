@@ -2,11 +2,12 @@
 
 # backend for micropython built-in free-dap module
 
+from pydapaccess.interface.interface import Interface
 import machine, dap, ubinascii
 
 IS_AVAILABLE = True
 
-class PyUSB(object):
+class PyUSB(Interface):
     """! @brief CMSIS-DAP interface class using micropython builtin dap for the backend.
     """
 
